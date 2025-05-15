@@ -36,10 +36,16 @@
         // Initialize camera for video background
         async function initVideoBackground() {
             video = document.getElementById('video-bg');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: "environment" } } // Request back camera
+                });
+                video.srcObject = stream;
 
-            videoTexture = new THREE.VideoTexture(video);
+                videoTexture = new THREE.VideoTexture(video);
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+            }
         }
 
         // Initialize Three.js scene
