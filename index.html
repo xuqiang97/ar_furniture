@@ -2,303 +2,168 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Furniture Placement</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <title>3D 家具 AR Demo</title>
   <style>
-    #instructions {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.85);
-      color: #fff;
-      padding: 14px 36px 14px 20px;
-      border-radius: 12px;
-      font-size: 16px;
-      z-index: 100;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      line-height: 1.6;
-      display: block;
-      min-width: 260px;
-      max-width: 96vw;
-      transition: opacity 0.2s;
-      pointer-events: auto;
-    }
-    #instructions.hide {
-      display: none;
-    }
-    #instructions .close-btn {
-      position: absolute;
-      top: 8px;
-      right: 10px;
-      color: #fff;
-      background: none;
-      border: none;
-      font-size: 22px;
-      font-weight: bold;
-      cursor: pointer;
-      opacity: 0.65;
-      z-index: 120;
-      line-height: 1;
-      padding: 0 4px;
-    }
-    #instructions .close-btn:hover {
-      opacity: 1;
-    }
-    #help-toggle {
-      position: fixed;
-      top: 18px;
-      right: 18px;
-      z-index: 110;
-      background: rgba(0,0,0,0.7);
-      color: #fff;
-      border: none;
-      border-radius: 50%;
-      width: 38px;
-      height: 38px;
-      font-size: 22px;
-      line-height: 36px;
-      text-align: center;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.2s;
-    }
-    #help-toggle:hover {
-      background: rgba(0,0,0,0.9);
-    }
-    #mode-indicator {
-      position: fixed;
-      top: 18px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.75);
-      color: #fff;
-      padding: 8px 20px;
-      border-radius: 10px;
-      font-size: 16px;
-      z-index: 12;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      transition: opacity 0.5s;
-      opacity: 1;
-      pointer-events: none;
-    }
-    #mode-indicator.hide {
-      opacity: 0;
-      transition: opacity 0.5s;
-    }
+    html, body { width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;}
+    #container { width: 100vw; height: 100vh; position: relative; }
+    canvas { display: block; }
   </style>
 </head>
-<body style="margin: 0; overflow: hidden;">
-  <div id="container" style="width: 100%; height: 100%; position: relative;"></div>
-  
-  <div id="instructions">
-    <button class="close-btn" title="关闭操作说明" onclick="document.getElementById('instructions').classList.add('hide')">&times;</button>
-    <b>操作说明：</b><br>
-    <span style="color:#9ff;">• 单指滑动：</span>旋转模型<br>
-    <span style="color:#9ff;">• 两指捏合：</span>缩放模型<br>
-    <span style="color:#9ff;">• <b>快速双击</b>屏幕：</span>切换“旋转/拖拽”模式<br>
-    <span style="color:#9ff;">• 单指滑动（拖拽模式）：</span>移动模型
-  </div>
-  <button id="help-toggle" title="显示操作说明" onclick="document.getElementById('instructions').classList.remove('hide')">?</button>
-  <div id="mode-indicator">当前模式：旋转</div>
-  <script>
-    let camera, scene, renderer, model;
-    let container = document.getElementById("container");
+<body>
+<div id="container"></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.154.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script>
+(async function() {
+  const container = document.getElementById('container');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  const aspect = width / height;
 
-    // 手势状态
-    let gestureMode = 'rotate'; // 'rotate', 'drag', 'scale'
-    let lastTouch = { x: 0, y: 0 };
-    let previousTouchDistance = null;
-
-    // 模式提示
-    const modeIndicator = document.getElementById('mode-indicator');
-    function showModeIndicator() {
-      modeIndicator.textContent = '当前模式：' + (gestureMode === 'drag' ? '拖拽' : '旋转');
-      modeIndicator.classList.remove('hide');
-      setTimeout(() => {
-        modeIndicator.classList.add('hide');
-      }, 1200);
+  // 1. 获取摄像头
+  const constraints = {
+    video: {
+      facingMode: 'environment',
+      aspectRatio: aspect,
+      width: { ideal: width },
+      height: { ideal: height }
     }
+  };
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  const video = document.createElement('video');
+  video.setAttribute('autoplay', '');
+  video.setAttribute('playsinline', '');
+  video.srcObject = stream;
 
-    async function init() {
-      scene = new THREE.Scene();
+  await new Promise(res => {
+    video.onloadedmetadata = () => {
+      video.play();
+      res();
+    };
+  });
 
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 2, 5);
+  // 2. Three.js 场景
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(70, aspect, 0.01, 1000);
+  camera.position.set(0, 1.6, 3);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      container.appendChild(renderer.domElement);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setClearAlpha(0);
+  renderer.setSize(width, height);
+  container.appendChild(renderer.domElement);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-      scene.add(ambientLight);
+  // 3. 用 VideoTexture 做背景
+  const videoTexture = new THREE.VideoTexture(video);
+  scene.background = videoTexture;
 
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(10, 10, 10);
-      scene.add(dirLight);
+  // 4. 加载 GLTF 家具模型
+  let furniture;
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    // 你可以替换成自己的 glb/gltf 文件
+    'https://threejs.org/examples/models/gltf/Chair/Chair.gltf',
+    gltf => {
+      furniture = gltf.scene;
+      furniture.position.set(0, 0, 0);
+      furniture.scale.set(1.2, 1.2, 1.2);
+      scene.add(furniture);
 
-      await setupCameraBackground();
+      // 5. 启用手势交互
+      enableGestures(furniture);
+    },
+    xhr => { /* 可选进度回调 */ },
+    err => { alert('模型加载失败:' + err); }
+  );
 
-      // 加载GLB模型，使用 jsDelivr 代理你的 Release 文件
-      loadGLBModel("https://cdn.jsdelivr.net/gh/xuqiang97/ar_furniture@v1.0/furniture.glb");
+  // 6. 响应式自适应
+  window.addEventListener('resize', () => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  });
 
-      window.addEventListener("resize", onWindowResize, false);
+  // 7. 渲染主循环
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+  animate();
 
-      animate();
-    }
+  // 8. 手势交互
+  function enableGestures(object) {
+    const mc = new Hammer.Manager(renderer.domElement);
 
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+    // 拖拽
+    const pan = new Hammer.Pan({ threshold: 0, pointers: 1 });
+    mc.add(pan);
 
-    async function setupCameraBackground() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
-        });
-        const video = document.createElement("video");
-        video.setAttribute("autoplay", "");
-        video.setAttribute("muted", "");
-        video.setAttribute("playsinline", "");
-        video.srcObject = stream;
-        await video.play();
+    // 缩放
+    const pinch = new Hammer.Pinch();
+    mc.add(pinch);
 
-        const videoTexture = new THREE.VideoTexture(video);
-        videoTexture.minFilter = THREE.LinearFilter;
-        videoTexture.magFilter = THREE.LinearFilter;
-        videoTexture.format = THREE.RGBFormat;
-        scene.background = videoTexture;
-      } catch (error) {
-        alert("无法访问摄像头，请检查权限设置");
-        console.error("Error accessing camera:", error);
-      }
-    }
+    // 旋转
+    const rotate = new Hammer.Rotate();
+    mc.add(rotate);
 
-    // 加载GLB模型
-    function loadGLBModel(url) {
-      const loader = new THREE.GLTFLoader();
-      loader.load(url, function(gltf) {
-        if (model) {
-          scene.remove(model);
-        }
-        model = gltf.scene;
-        model.position.set(0, 0.5, 0);
-        model.scale.set(1, 1, 1);
-        fitModelToView(model);
-        scene.add(model);
-        enableGestures(model);
-      }, undefined, function(error) {
-        alert("模型加载失败，请检查模型URL或网络！");
-        console.error(error);
-      });
-    }
+    // 组合
+    pinch.recognizeWith(rotate);
 
-    // 模型自适应到合适大小
-    function fitModelToView(obj) {
-      const box = new THREE.Box3().setFromObject(obj);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = 1.5 / maxDim;
-      obj.scale.set(scale, scale, scale);
-      // 居中
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-      obj.position.sub(center);
-      obj.position.y += 1; // 把模型底部放在y=0附近
-    }
+    // 记录初始状态
+    let lastPan = { x: 0, y: 0 };
+    let lastScale = 1;
+    let lastRotation = 0;
+    let startPosition = new THREE.Vector3();
+    let startScale = new THREE.Vector3();
+    let startRotationY = 0;
 
-    // 手势控制
-    function enableGestures(object) {
-      let dragStart = { x: 0, y: 0 };
-      let dragModelStart = { x: 0, y: 0, z: 0 };
-      let lastSingleTap = 0;
+    // 拖拽
+    mc.on('panstart', ev => {
+      lastPan.x = ev.center.x;
+      lastPan.y = ev.center.y;
+      startPosition.copy(object.position);
+    });
 
-      container.addEventListener("touchstart", (event) => {
-        if (event.touches.length === 1) {
-          // 检测双击切换拖拽/旋转
-          const now = Date.now();
-          if (now - lastSingleTap < 300) {
-            gestureMode = (gestureMode === 'drag') ? 'rotate' : 'drag';
-            showModeIndicator();
-          }
-          lastSingleTap = now;
+    mc.on('panmove', ev => {
+      // 这里假设拖拽在X、Z平面上，y轴高度不变
+      const deltaX = (ev.center.x - lastPan.x) / width * 5; // 5是场景宽度的近似缩放
+      const deltaY = (ev.center.y - lastPan.y) / height * 5;
+      object.position.x = startPosition.x + deltaX;
+      object.position.z = startPosition.z + deltaY;
 
-          lastTouch.x = event.touches[0].pageX;
-          lastTouch.y = event.touches[0].pageY;
-          dragStart.x = event.touches[0].pageX;
-          dragStart.y = event.touches[0].pageY;
-          dragModelStart.x = object.position.x;
-          dragModelStart.y = object.position.y;
-          dragModelStart.z = object.position.z;
-        } else if (event.touches.length === 2) {
-          gestureMode = 'scale';
-          const dx = event.touches[0].pageX - event.touches[1].pageX;
-          const dy = event.touches[0].pageY - event.touches[1].pageY;
-          previousTouchDistance = Math.sqrt(dx * dx + dy * dy);
-        }
-      });
+      // 边界限制（示例：可自定义/自适应）
+      const bounds = 2.5;
+      object.position.x = Math.max(-bounds, Math.min(bounds, object.position.x));
+      object.position.z = Math.max(-bounds, Math.min(bounds, object.position.z));
+    });
 
-      container.addEventListener("touchmove", (event) => {
-        if (gestureMode === 'rotate' && event.touches.length === 1) {
-          event.preventDefault();
-          const touch = event.touches[0];
-          const dx = touch.pageX - lastTouch.x;
-          const dy = touch.pageY - lastTouch.y;
-          object.rotation.y += dx * 0.01;
-          object.rotation.x += dy * 0.01;
-          object.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, object.rotation.x));
-          lastTouch.x = touch.pageX;
-          lastTouch.y = touch.pageY;
-        } else if (gestureMode === 'drag' && event.touches.length === 1) {
-          event.preventDefault();
-          const touch = event.touches[0];
-          const moveX = (touch.pageX - dragStart.x) * 0.01;
-          const moveY = (touch.pageY - dragStart.y) * 0.01;
-          object.position.x = dragModelStart.x + moveX;
-          object.position.y = dragModelStart.y - moveY;
-          object.position.x = Math.max(-5, Math.min(5, object.position.x));
-          object.position.y = Math.max(0, Math.min(5, object.position.y));
-        } else if (gestureMode === 'scale' && event.touches.length === 2) {
-          event.preventDefault();
-          const dx = event.touches[0].pageX - event.touches[1].pageX;
-          const dy = event.touches[0].pageY - event.touches[1].pageY;
-          const touchDistance = Math.sqrt(dx * dx + dy * dy);
+    // 缩放
+    mc.on('pinchstart', ev => {
+      lastScale = ev.scale;
+      object.getWorldScale(startScale);
+    });
+    mc.on('pinchmove', ev => {
+      const scale = startScale.x * ev.scale / lastScale;
+      object.scale.setScalar(Math.max(0.3, Math.min(2.5, scale)));
+    });
 
-          if (previousTouchDistance) {
-            let scaleDelta = touchDistance / previousTouchDistance;
-            let newScale = object.scale.x * scaleDelta;
-            newScale = Math.max(0.1, Math.min(5, newScale));
-            object.scale.set(newScale, newScale, newScale);
-          }
-          previousTouchDistance = touchDistance;
-        }
-      }, { passive: false });
+    // 旋转
+    mc.on('rotatestart', ev => {
+      lastRotation = ev.rotation;
+      startRotationY = object.rotation.y;
+    });
+    mc.on('rotatemove', ev => {
+      object.rotation.y = startRotationY + (ev.rotation - lastRotation) * Math.PI / 180;
+    });
 
-      container.addEventListener("touchend", (event) => {
-        if (event.touches.length === 0) {
-          if (gestureMode === 'scale') gestureMode = 'rotate';
-          previousTouchDistance = null;
-        }
-      });
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-      if (model) model.visible = true;
-      renderer.render(scene, camera);
-    }
-
-    init();
-  </script>
+    // 阻止默认行为
+    renderer.domElement.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+    renderer.domElement.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+    renderer.domElement.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+  }
+})();
+</script>
 </body>
 </html>
