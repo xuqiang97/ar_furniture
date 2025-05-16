@@ -12,6 +12,7 @@
     let camera, scene, renderer, model;
     let container = document.getElementById("container");
 
+    // Initialize Three.js Scene
     async function init() {
       scene = new THREE.Scene();
 
@@ -24,25 +25,26 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       container.appendChild(renderer.domElement);
 
-      // Add lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+      // Add ambient lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      // Add directional light
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
       dirLight.position.set(10, 10, 10);
       scene.add(dirLight);
 
-      // Set up camera background
+      // Access camera stream and set as background
       await setupCameraBackground();
 
-      // Add 3D model
+      // Load 3D model (example: a cube as a placeholder for furniture)
       const geometry = new THREE.BoxGeometry(1, 1, 1);
       const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
       model = new THREE.Mesh(geometry, material);
-      model.position.set(0, 0, -2); // Place in front of the camera
       scene.add(model);
 
-      console.log('Model added to scene:', model);
+      // Enable dragging and scaling
+      enableDragAndScale(model);
 
       // Handle resizing
       window.addEventListener("resize", onWindowResize, false);
@@ -50,45 +52,78 @@
       animate();
     }
 
+    // Handle window resizing
     function onWindowResize() {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    // Set up device camera as background
     async function setupCameraBackground() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
         const video = document.createElement("video");
         video.srcObject = stream;
         video.play();
 
+        // Create video texture and set as scene background
         const videoTexture = new THREE.VideoTexture(video);
-        const bgScene = new THREE.Scene();
-        const bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        const bgMaterial = new THREE.MeshBasicMaterial({ map: videoTexture });
-        const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMaterial);
-        bgScene.add(bgPlane);
-
-        scene.userData.bgScene = bgScene;
-        scene.userData.bgCamera = bgCamera;
-
+        scene.background = videoTexture;
       } catch (error) {
         console.error("Error accessing camera:", error);
       }
     }
 
+    // Enable dragging and scaling for model
+    function enableDragAndScale(object) {
+      let isDragging = false;
+      let previousTouchDistance = null;
+
+      container.addEventListener("touchstart", (event) => {
+        if (event.touches.length === 1) {
+          isDragging = true;
+        } else if (event.touches.length === 2) {
+          isDragging = false; // Stop dragging during pinch
+          const dx = event.touches[0].pageX - event.touches[1].pageX;
+          const dy = event.touches[0].pageY - event.touches[1].pageY;
+          previousTouchDistance = Math.sqrt(dx * dx + dy * dy);
+        }
+      });
+
+      container.addEventListener("touchmove", (event) => {
+        if (isDragging && event.touches.length === 1) {
+          const touch = event.touches[0];
+          const movementX = touch.movementX || touch.pageX - touch.clientX;
+          const movementY = touch.movementY || touch.pageY - touch.clientY;
+
+          object.position.x += movementX * 0.01;
+          object.position.y -= movementY * 0.01;
+        } else if (event.touches.length === 2) {
+          const dx = event.touches[0].pageX - event.touches[1].pageX;
+          const dy = event.touches[0].pageY - event.touches[1].pageY;
+          const touchDistance = Math.sqrt(dx * dx + dy * dy);
+
+          if (previousTouchDistance) {
+            const scaleDelta = touchDistance / previousTouchDistance;
+            object.scale.multiplyScalar(scaleDelta);
+          }
+
+          previousTouchDistance = touchDistance;
+        }
+      });
+
+      container.addEventListener("touchend", () => {
+        isDragging = false;
+        previousTouchDistance = null;
+      });
+    }
+
+    // Animation loop
     function animate() {
       requestAnimationFrame(animate);
-
-      // Render background
-      if (scene.userData.bgScene && scene.userData.bgCamera) {
-        renderer.autoClear = false;
-        renderer.clear();
-        renderer.render(scene.userData.bgScene, scene.userData.bgCamera);
-      }
-
-      // Render main scene
       renderer.render(scene, camera);
     }
 
