@@ -93,8 +93,8 @@
 
       await setupCameraBackground();
 
-      // 加载GLB模型
-      loadGLBModel("https://github.com/xuqiang97/ar_furniture/releases/download/v1.0/furniture.glb");
+      // 加载GLB模型，使用 jsDelivr 代理你的 Release 文件
+      loadGLBModel("https://cdn.jsdelivr.net/gh/xuqiang97/ar_furniture@v1.0/furniture.glb");
 
       window.addEventListener("resize", onWindowResize, false);
 
