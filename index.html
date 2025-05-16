@@ -71,7 +71,17 @@
 
         // Create video texture and set as scene background
         const videoTexture = new THREE.VideoTexture(video);
-        scene.background = videoTexture;
+
+        // Create a separate background scene
+        const bgScene = new THREE.Scene();
+        const bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const bgMaterial = new THREE.MeshBasicMaterial({ map: videoTexture });
+        const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMaterial);
+        bgScene.add(bgPlane);
+
+        // Store background scene and camera for rendering
+        scene.userData.bgScene = bgScene;
+        scene.userData.bgCamera = bgCamera;
       } catch (error) {
         console.error("Error accessing camera:", error);
       }
@@ -124,6 +134,15 @@
     // Animation loop
     function animate() {
       requestAnimationFrame(animate);
+
+      // Render the background scene
+      if (scene.userData.bgScene && scene.userData.bgCamera) {
+        renderer.autoClear = false;
+        renderer.clear();
+        renderer.render(scene.userData.bgScene, scene.userData.bgCamera);
+      }
+
+      // Render the main scene
       renderer.render(scene, camera);
     }
 
