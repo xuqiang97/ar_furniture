@@ -66,6 +66,9 @@
           video: { facingMode: "environment" }
         });
         const video = document.createElement("video");
+        video.setAttribute("autoplay", "");
+        video.setAttribute("muted", "");
+        video.setAttribute("playsinline", "");
         video.srcObject = stream;
         video.play();
 
@@ -81,12 +84,15 @@
     function enableDragAndScale(object) {
       let isDragging = false;
       let previousTouchDistance = null;
+      let lastTouch = { x: 0, y: 0 };
 
       container.addEventListener("touchstart", (event) => {
         if (event.touches.length === 1) {
           isDragging = true;
+          lastTouch.x = event.touches[0].pageX;
+          lastTouch.y = event.touches[0].pageY;
         } else if (event.touches.length === 2) {
-          isDragging = false; // Stop dragging during pinch
+          isDragging = false; // 停止拖拽，准备缩放
           const dx = event.touches[0].pageX - event.touches[1].pageX;
           const dy = event.touches[0].pageY - event.touches[1].pageY;
           previousTouchDistance = Math.sqrt(dx * dx + dy * dy);
@@ -96,24 +102,30 @@
       container.addEventListener("touchmove", (event) => {
         if (isDragging && event.touches.length === 1) {
           const touch = event.touches[0];
-          const movementX = touch.movementX || touch.pageX - touch.clientX;
-          const movementY = touch.movementY || touch.pageY - touch.clientY;
+          // 计算当前和上一次的偏移量
+          const movementX = touch.pageX - lastTouch.x;
+          const movementY = touch.pageY - lastTouch.y;
 
+          // 只改变模型，不动相机和背景
           object.position.x += movementX * 0.01;
           object.position.y -= movementY * 0.01;
+
+          lastTouch.x = touch.pageX;
+          lastTouch.y = touch.pageY;
         } else if (event.touches.length === 2) {
           const dx = event.touches[0].pageX - event.touches[1].pageX;
           const dy = event.touches[0].pageY - event.touches[1].pageY;
           const touchDistance = Math.sqrt(dx * dx + dy * dy);
 
           if (previousTouchDistance) {
-            const scaleDelta = touchDistance / previousTouchDistance;
-            object.scale.multiplyScalar(scaleDelta);
+            let scaleDelta = touchDistance / previousTouchDistance;
+            let newScale = object.scale.x * scaleDelta;
+            newScale = Math.max(0.1, Math.min(5, newScale)); // 限制缩放比例
+            object.scale.set(newScale, newScale, newScale);
           }
-
           previousTouchDistance = touchDistance;
         }
-      });
+      }, { passive: false });
 
       container.addEventListener("touchend", () => {
         isDragging = false;
