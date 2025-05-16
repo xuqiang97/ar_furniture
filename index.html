@@ -70,10 +70,13 @@
         video.setAttribute("muted", "");
         video.setAttribute("playsinline", "");
         video.srcObject = stream;
-        video.play();
+        await video.play();
 
         // Create video texture and set as scene background
         const videoTexture = new THREE.VideoTexture(video);
+        videoTexture.minFilter = THREE.LinearFilter;
+        videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.format = THREE.RGBFormat;
         scene.background = videoTexture;
       } catch (error) {
         console.error("Error accessing camera:", error);
