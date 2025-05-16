@@ -80,7 +80,7 @@
       }
     }
 
-    // Enable dragging and scaling for model
+    // Enable dragging and scaling for model (only affects model, not camera or background)
     function enableDragAndScale(object) {
       let isDragging = false;
       let previousTouchDistance = null;
@@ -92,7 +92,7 @@
           lastTouch.x = event.touches[0].pageX;
           lastTouch.y = event.touches[0].pageY;
         } else if (event.touches.length === 2) {
-          isDragging = false; // 停止拖拽，准备缩放
+          isDragging = false;
           const dx = event.touches[0].pageX - event.touches[1].pageX;
           const dy = event.touches[0].pageY - event.touches[1].pageY;
           previousTouchDistance = Math.sqrt(dx * dx + dy * dy);
@@ -102,17 +102,14 @@
       container.addEventListener("touchmove", (event) => {
         if (isDragging && event.touches.length === 1) {
           const touch = event.touches[0];
-          // 计算当前和上一次的偏移量
           const movementX = touch.pageX - lastTouch.x;
           const movementY = touch.pageY - lastTouch.y;
-
-          // 只改变模型，不动相机和背景
           object.position.x += movementX * 0.01;
           object.position.y -= movementY * 0.01;
-
           lastTouch.x = touch.pageX;
           lastTouch.y = touch.pageY;
         } else if (event.touches.length === 2) {
+          event.preventDefault(); // Prevent page zoom/scroll, crucial for mobile
           const dx = event.touches[0].pageX - event.touches[1].pageX;
           const dy = event.touches[0].pageY - event.touches[1].pageY;
           const touchDistance = Math.sqrt(dx * dx + dy * dy);
@@ -120,7 +117,7 @@
           if (previousTouchDistance) {
             let scaleDelta = touchDistance / previousTouchDistance;
             let newScale = object.scale.x * scaleDelta;
-            newScale = Math.max(0.1, Math.min(5, newScale)); // 限制缩放比例
+            newScale = Math.max(0.1, Math.min(5, newScale));
             object.scale.set(newScale, newScale, newScale);
           }
           previousTouchDistance = touchDistance;
