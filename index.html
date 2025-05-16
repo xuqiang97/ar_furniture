@@ -62,7 +62,6 @@
     // 手势状态
     let gestureMode = 'rotate'; // 'rotate', 'drag', 'scale'
     let lastTouch = { x: 0, y: 0 };
-    let lastModelPosition = { x: 0, y: 0, z: 0 };
     let previousTouchDistance = null;
 
     // 模式提示
@@ -74,7 +73,7 @@
         modeIndicator.classList.add('hide');
       }, 1200);
     }
-    // 初始化 Three.js 场景
+
     async function init() {
       scene = new THREE.Scene();
 
@@ -95,7 +94,7 @@
       await setupCameraBackground();
 
       // 加载GLB模型
-      loadGLBModel("https://github.com/xuqiang97/ar_furniture/raw/main/furniture.glb");
+      loadGLBModel("https://github.com/xuqiang97/ar_furniture/releases/download/v1.0/furniture.glb");
 
       window.addEventListener("resize", onWindowResize, false);
 
@@ -135,17 +134,13 @@
     function loadGLBModel(url) {
       const loader = new THREE.GLTFLoader();
       loader.load(url, function(gltf) {
-        // 移除旧模型
         if (model) {
           scene.remove(model);
         }
         model = gltf.scene;
-        // 模型适当缩放和位置
         model.position.set(0, 0.5, 0);
         model.scale.set(1, 1, 1);
-        // 尝试自适应模型大小
         fitModelToView(model);
-
         scene.add(model);
         enableGestures(model);
       }, undefined, function(error) {
@@ -156,7 +151,6 @@
 
     // 模型自适应到合适大小
     function fitModelToView(obj) {
-      // 计算包围盒
       const box = new THREE.Box3().setFromObject(obj);
       const size = new THREE.Vector3();
       box.getSize(size);
@@ -170,7 +164,7 @@
       obj.position.y += 1; // 把模型底部放在y=0附近
     }
 
-    // 手势控制：单指旋转，双指缩放，双击切换拖拽模式
+    // 手势控制
     function enableGestures(object) {
       let dragStart = { x: 0, y: 0 };
       let dragModelStart = { x: 0, y: 0, z: 0 };
