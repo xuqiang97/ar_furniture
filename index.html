@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AR Furniture Placement</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
     #instructions {
       position: fixed;
@@ -93,14 +94,8 @@
 
       await setupCameraBackground();
 
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
-      const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-      model = new THREE.Mesh(geometry, material);
-      model.position.set(0, 1, 0);
-      model.scale.set(1, 1, 1);
-      scene.add(model);
-
-      enableGestures(model);
+      // 加载GLB模型
+      loadGLBModel("https://github.com/xuqiang97/ar_furniture/raw/main/furniture.glb");
 
       window.addEventListener("resize", onWindowResize, false);
 
@@ -136,6 +131,45 @@
       }
     }
 
+    // 加载GLB模型
+    function loadGLBModel(url) {
+      const loader = new THREE.GLTFLoader();
+      loader.load(url, function(gltf) {
+        // 移除旧模型
+        if (model) {
+          scene.remove(model);
+        }
+        model = gltf.scene;
+        // 模型适当缩放和位置
+        model.position.set(0, 0.5, 0);
+        model.scale.set(1, 1, 1);
+        // 尝试自适应模型大小
+        fitModelToView(model);
+
+        scene.add(model);
+        enableGestures(model);
+      }, undefined, function(error) {
+        alert("模型加载失败，请检查模型URL或网络！");
+        console.error(error);
+      });
+    }
+
+    // 模型自适应到合适大小
+    function fitModelToView(obj) {
+      // 计算包围盒
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 1.5 / maxDim;
+      obj.scale.set(scale, scale, scale);
+      // 居中
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      obj.position.sub(center);
+      obj.position.y += 1; // 把模型底部放在y=0附近
+    }
+
     // 手势控制：单指旋转，双指缩放，双击切换拖拽模式
     function enableGestures(object) {
       let dragStart = { x: 0, y: 0 };
@@ -164,7 +198,6 @@
           const dx = event.touches[0].pageX - event.touches[1].pageX;
           const dy = event.touches[0].pageY - event.touches[1].pageY;
           previousTouchDistance = Math.sqrt(dx * dx + dy * dy);
-          // 不切换模式提示
         }
       });
 
@@ -176,7 +209,6 @@
           const dy = touch.pageY - lastTouch.y;
           object.rotation.y += dx * 0.01;
           object.rotation.x += dy * 0.01;
-          // 限制X轴旋转范围（避免翻转）
           object.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, object.rotation.x));
           lastTouch.x = touch.pageX;
           lastTouch.y = touch.pageY;
@@ -187,7 +219,6 @@
           const moveY = (touch.pageY - dragStart.y) * 0.01;
           object.position.x = dragModelStart.x + moveX;
           object.position.y = dragModelStart.y - moveY;
-          // 限制模型移动范围
           object.position.x = Math.max(-5, Math.min(5, object.position.x));
           object.position.y = Math.max(0, Math.min(5, object.position.y));
         } else if (gestureMode === 'scale' && event.touches.length === 2) {
@@ -208,7 +239,7 @@
 
       container.addEventListener("touchend", (event) => {
         if (event.touches.length === 0) {
-          if (gestureMode === 'scale') gestureMode = 'rotate'; // 返回默认旋转模式
+          if (gestureMode === 'scale') gestureMode = 'rotate';
           previousTouchDistance = null;
         }
       });
